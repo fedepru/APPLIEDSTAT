@@ -1,0 +1,3 @@
+library(data.table)
+df <- fread("C:\Users\Ascolani\Desktop\PROJECT RAUL BOA\cmems_obs-ins_glo_phybgcwav_mynrt_na_irr_1741957872722.csv")
+df[, nuova_colonna := colonna_esistente * 2]
