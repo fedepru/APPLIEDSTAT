@@ -26,12 +26,15 @@ plot(v1)
 #vgm(psill=  ,"Model", range= , nugget=  )
 #if the model is asked "without nugget" just set nugget param to zero
 
-#possible choices for Model: "Sph" spherical, "Exp" exponential, "Gau" gaussian
+#possible choices for Model: "Sph" Spherical, "Exp" Exponential, "Gau" Gaussian
 # "Mat", "Lin"
 
 #In the unfortunate case the call for vgm isn't included start with all blank param
-#and try to estimate them after first iteration:
+#and try to estimate them after first iteration: nugget is a special case:
+#it will tell you with/without: with nugget => set nugget to zero
+#  without nugget  don't set nugget, omit it in the vgm call ex: vgm(3,"Sph", 2000)
 
+# Fit the variogram model --------------------------------------------------
 v1.fit <- fit.variogram(v1, vgm("fill with intialisation data"), fit.method = 7) # 7 - by default (Weighted least squares) 
 v1.fit # here we see psill and range (estimated)
 #then repeat the call with estimated param in vgm
@@ -55,8 +58,15 @@ v1.fit
 
 
 g.tr <- gstat(formula = "Response" ~ "Covariates", data = data, model = v1.fit)
-summary(g.tr) #if we have a factor we might want to remove intercept
-#(-1 in formula) to get beta0s in their pure form
+summary(g.tr) 
+#How to write the model correctly: look carefully at the pedices of the coefficients
+#PAY A LOT OF ATTENTION TO FACTOR VARIABLES: IN ALMOST EVERY CASE
+#WE WILL REMOVE INTERCEPT WHEN DEALING WITH FACTORS
+
+#ex1: y= beta0i + beta1*covariate  i factor with levels => formula= Response ~ -1 + covariate + factor
+#ex2: y= beta0ij + beta1j*covariate 2 factors i and j => formula = Reasponse ~ -1 + factor1*factor2 + covariate*factor2
+#THE EXAMPLE 2 IS CRUCIAL, WHEN WE SEE A beta0,ij WE KNOW WE HAVE TO REMOVE INTERCEPT and fit interaction between factors
+
 
 #To estimate parameters of the model use a series of points (all in x,y = 0,0)
 #in this example we have no intercept, one factor (2 levels) and one covariate

@@ -94,7 +94,8 @@ if (MODE == "A") {
   
   # --- Plot smoothed curves ---
   # Interpretation: Higher λ -> smoother (lower eff.df). For daily load, Fourier K=13 captures daily cycles well.
-  plot(fit$fd, main = "Smoothed curves", xlab = "hour", ylab = "y(t)")
+  plot(fit$fd, main = "Smoothed curves", xlab = "hour", ylab = "y(t)") #number of splines = nbasis
+  # mean eff. df = approx dim of the space in which the smoothed curves live
   
 } else if (MODE == "B") {
   rngB   <- range(x_vec)
@@ -149,7 +150,18 @@ if (MODE == "A") {
   colnames(scores) <- paste0("PC", seq_len(ncol(scores)))
   if (!is.null(group)) scores$group <- group
 }
-#TO UPDATE
+
+# plot degli scores dei primi due PC divisi per gruppo
+scores <- pca$scores
+plot(scores[, 1], scores[, 2], col = as.factor(group),
+     pch = 19, xlab = "PC1", ylab = "PC2", main = "Scores of First Two Principal Components")
+legend("topright", legend = c("Autumn", "Spring", "Summer", "Winter"), col = as.factor(levels(as.factor(season))), pch = 19)
+
+plot(scores[, 1] ~ as.factor(season)) # by PC1 we see difference among Summer, Winter and Autumn wiht Spring
+plot(scores[, 2] ~ as.factor(season)) # by PC2 it's difficlut to ifnd difference among seasons
+
+
+
 # -------- 5) Group separation & quick classification (MODE A, if groups exist) ---
 if (MODE == "A" && !is.null(group)) {
   # --- PC1 vs PC2 scatter ---
