@@ -13,9 +13,9 @@ data <- read.table("stats.txt", h=TRUE) #change file name
 coordinates(data) <- c('x', 'y')  # if needed change coords
 
 # plot of fitted variogram, estimates of range and sill -------------------
+#WARNING: when dealing with factors we usually remove intercept from the model 
+# so add -1 in the formula if the formula contains one or more factors
 
-#If I have a factor I should be careful evaluating the model with/without intercept:
-#the betas0 can vary and I have to report the correct ones.
 v1 <- variogram("Response" ~  "Covariates", data)
 v1
 plot(v1)
@@ -24,28 +24,29 @@ plot(v1)
 ## how to initialize vgm ---------------------------------------------------
 #ideally the initialization call for vgm is contained in the exercise text
 #vgm(psill=  ,"Model", range= , nugget=  )
-#if the model is asked "without nugget" just set nugget param to zero
+#if the model is asked "without nugget" just omit the nugget term in the call
 
 #possible choices for Model: "Sph" Spherical, "Exp" Exponential, "Gau" Gaussian
 # "Mat", "Lin"
 
-#In the unfortunate case the call for vgm isn't included start with all blank param
-#and try to estimate them after first iteration: nugget is a special case:
-#it will tell you with/without: with nugget => set nugget to zero
-#  without nugget  don't set nugget, omit it in the vgm call ex: vgm(3,"Sph", 2000)
+#In the unfortunate case the call for vgm isn't included start with all blank param 
+#WARNING: BE CAREFUL WITH NUGGET
+# if the model is with nugget, set nugget to either 0 or 0.1
+# and try to estimate them (all parameters) after first iteration
+# without nugget  don't set nugget, omit it in the vgm call ex: vgm(3,"Sph", 2000)
 
 # Fit the variogram model --------------------------------------------------
-v1.fit <- fit.variogram(v1, vgm("fill with intialisation data"), fit.method = 7) # 7 - by default (Weighted least squares) 
+v1.fit <- fit.variogram(v1, vgm("fill with intialisation data"))  
 v1.fit # here we see psill and range (estimated)
-#then repeat the call with estimated param in vgm
+#then repeat the call with estimated param in vgm (if you started without the vgm call)
 #ex:
 #model    psill    range
 #1   Nug 1.451283    0.000
-#2   Sph 1.550279 2001.374  psill=1.45+1.55=3 range=2000
-#=> vgm(3,"Sph", 2000, 1)  
-#nugget is more difficult to estimate, 
+#2   Sph 1.550279 2001.374    (from model) psill=1.55 range=2000
+#=> vgm(1.55,"Sph", 2000, 1.45)  
+#nugget is more difficult to estimate, (you can use the datum or the following)
 #go kinda lower than the y of the first point on the variogram: 
-#look at the plot: we look for a fit in the data
+#look at the plot: we look for a fit in the data (best way to see if the fit is right)
 
 
 plot(v1, v1.fit)
@@ -63,16 +64,19 @@ summary(g.tr)
 #PAY A LOT OF ATTENTION TO FACTOR VARIABLES: IN ALMOST EVERY CASE
 #WE WILL REMOVE INTERCEPT WHEN DEALING WITH FACTORS
 
-#ex1: y= beta0i + beta1*covariate  i factor with levels => formula= Response ~ -1 + covariate + factor
-#ex2: y= beta0ij + beta1j*covariate 2 factors i and j => formula = Reasponse ~ -1 + factor1*factor2 + covariate*factor2
-#THE EXAMPLE 2 IS CRUCIAL, WHEN WE SEE A beta0,ij WE KNOW WE HAVE TO REMOVE INTERCEPT and fit interaction between factors
+#ex1: y= beta0i + beta1*covariate  (1 factor with levels: i) 
+# => formula= Response ~ -1 + covariate + factor
+#ex2: y= beta0ij + beta1j*covariate (2 factors with levels: i and j) 
+# => formula = Response ~ -1 + factor1*factor2 + covariate*factor2
+
+#THE EXAMPLE 2 IS CRUCIAL, WHEN WE SEE A beta0ij 
+#WE KNOW WE HAVE TO REMOVE INTERCEPT and fit interaction between factors
 
 
 #To estimate parameters of the model use a series of points (all in x,y = 0,0)
-#in this example we have no intercept, one factor (2 levels) and one covariate
+#in this example we have no intercept, one factor (season: 2 levels) and one covariate
 #for these BLUE should be TRUE: y= beta0i + beta1*moisture i=0,1 (false/true)
 #we make prediction for multiple points and solve the system:
-
 
 s0.new=data.frame(x=0.0, y=0.0, moisture=0.0, season=FALSE) # UTM coordinates
 coordinates(s0.new)=c('x','y')
@@ -82,7 +86,7 @@ predict(g.tr, s0.new, BLUE = TRUE) # var1.pred =  value to consider for system t
 s1.new=data.frame(x=0.0, y=0.0, moisture=0.0, season=TRUE) # UTM coordinates
 coordinates(s1.new)=c('x','y')
 
-predict(g.tr, s1.new, BLUE = TRUE) # var1.pred = 
+predict(g.tr, s1.new, BLUE = TRUE) # var1.pred = value to consider for system to solve
 
 s2.new=data.frame(x=0.0, y=0.0, moisture=1.0, season=FALSE) # UTM coordinates
 coordinates(s2.new)=c('x','y')
@@ -96,7 +100,10 @@ predict(g.tr, s2.new, BLUE = TRUE) # var1.pred = 1.12994
 
 
 # estimate response for new data ------------------------------------------
-#update with data in the same order and same var names as the original df
+#update with data in the same order and same var names as the original dataframe
+#there will be some cases in which the UTM coords aren't specified
+#in that case use (0,0) and BLUE=TRUE (check it will probably say "expected" in te text)
+
 sc.new=data.frame(x=0.0, y=0.0, "Other vars") # UTM coordinates (adjust if needed)
 coordinates(sc.new)=c('x','y')
 
@@ -139,23 +146,16 @@ lines(d.seq, gamma1, col = "blue", lwd = 2)
 gamma2 <- variogramLine(v3.fit, dist_vector = d.seq)$gamma
 lines(d.seq, gamma2, col = "red", lwd = 2)
 
-#legend("bottomright", legend = c("Common urban factor", "Individual intercept"),
-      # col = c("blue", "red"), lwd = 2, bty = "n")
 
-# I would prefer model 3, because it little bit smoother, because has higher range than model 2
-# (while their sill is equal)
-# Model 1 worse, because have much higher sill and not smooth enough
+# interpretation of effects in the model ----------------------------------
 
-
-
-#example: we need to repeat the steps done before:
+#example: we need to repeat the steps done before with a new model with extra factor:
 #fit the variogram, estimate parameters
-#predict many points with BLUE=TRUE and solve the system
+#predict many points with BLUE=TRUE and solve the system to get coefficients for the model
 
-#ex: interpretation question
-
-# How would you describe the effect of the canopy variable (during early summer)?
-# It has positive effect, вue to coefficent > 0, so canopy helps trees growth 
+#ex: How would you describe the effect of the canopy variable (during early summer)?
+# It has positive effect,  beta coefficent > 0, so canopy helps trees growth 
 # also Coefficents with canopy (TRUE) has higher value, so it has better effect for
 # trees growth, compared to open-airs
+
 

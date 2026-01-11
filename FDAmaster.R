@@ -16,34 +16,46 @@ suppressPackageStartupMessages({
 })
 
 # ------------------------------- 0) MODE & INPUTS --------------------------------
-MODE <- "A"  # "A" = functional sample; "B" = single curve
+MODE <- "A"  # "A" = functional sample; "B" = single NOISY curve
 
-# --- A) Functional sample (examples: load.txt, temperature.txt) ---
-# Load (hourly GW over 2023; groups = daytype)  :contentReference[oaicite:3]{index=3}
-A_DATA_PATH   <- "load.txt"                     # or "temperature.txt" (:contentReference[oaicite:4]{index=4})
-A_GRID_LABELS <- paste0("h", 0:24)              # grid columns
-A_ARGVALS     <- 0:24                           # numeric grid in [0,24]
-A_GROUP_VAR   <- "daytype"                      # e.g., "daytype" (load) or "season" (temperature)
+# MODE A: functional sample ------------------------------------------------------------------
+A_DATA_PATH   <- "data.txt"                     # filename
+
+A_GRID_LABELS <- paste0("h", a:b)              # grid columns in data file (e.g., h0, h1, ..., h24)
+A_ARGVALS     <- a:b                           # numeric grid in DOMAIN (e.g. [0,24])
+
+A_GROUP_VAR   <- "factor"                      #factor variable that indicates groups,
+                                                #if not present set to NULL
 # Choose basis for MODE A:
-BASIS_TYPE  <- "fourier"  # "bspline" or "fourier"
-# If B-splines (often for temps): order = degree+1 (Quadratic -> 3; Cubic -> 4)
-BS_ORDER_A  <- 3
-BS_BREAKS_A <- A_ARGVALS        # knots at each hour (when using bspline)
-# If Fourier (often for daily periodic data like load):
-N_BASIS_FOURIER <- 13           # <-- per LOAD exercise
-# Penalty (applies to A): first-derivative penalty is common for daily profiles
-LFD_ORDER_A <- 1
-LAMBDA_A    <- 1                # ω (fixed unless the exercise asks to tune)
+BASIS_TYPE  <- "fourier"    # "bspline" or "fourier"
+
+# If B-splines: (order=LFD+2 rule of thumb)
+BS_ORDER_A  <- 3                # order of B-spline (Quadratic ->3,Cubic -> 4)
+BS_BREAKS_A <- A_ARGVALS        # knots at each point in domain (e.g., 0,1,2,...,24)
+                                # (when using bspline)
+
+# If Fourier (often for daily periodic data):
+N_BASIS_FOURIER <- 13           #specified in exercise
+
+# Penalty (applies to A):
+LFD_ORDER_A <- 1                # order of derivative to penalize: usually specified in text
+                                # if not specified:
+                                # good rule: order - 2 (e.g., for order=4, use LFD=2)
+                                # Fourier: usually LFD=1 (penalize roughness)
+LAMBDA_A    <- 1                # lambda: specified by text
 
 # FPCA settings (A)
-NHARM       <- 10               # try up to this many harmonics
+NHARM       <- 10               # try up to this many harmonics (upper bound for fdpcs)
 CUM_PVE_TGT <- 0.95             # target cumulative variance explained (e.g., 95%)
 
-# --- B) Single curve (example: stelvio.txt)  :contentReference[oaicite:5]{index=5} ---
-B_DATA_PATH <- "stelvio.txt"    # columns: distance (km), altitude (m)
-BS_ORDER_B  <- 4                # cubic B-splines
-LFD_ORDER_B <- 2                # penalize curvature
-LAMBDA_B    <- 1                # fixed λ (unless asked to tune)
+
+# MODE B: single NOISY CURVE ----------------------------------------------
+
+B_DATA_PATH <- "data.txt"       # filename
+BS_ORDER_B  <- 4                # order of B-spline (Quadratic ->3,Cubic -> 4)
+LFD_ORDER_B <- 2                # order of derivative to penalize: usually specified in text
+                                # if not specified: use same rule: LFD = order - 2
+LAMBDA_B    <- 1                # fixed λ provided by text
 GRADE_FLAGS <- c(0.08, 0.10)    # optional grade thresholds (8%, 10%)
 
 # ------------------------------- 1) LOAD DATA ------------------------------------
@@ -69,6 +81,7 @@ if (MODE == "B") {
 }
 
 # ------------------------------- 2) BASIS SETUP ----------------------------------
+#choose if using b-splines or fourier basis
 mk_basis_bspline <- function(rng, order, breaks) {
   create.bspline.basis(rangeval = rng, norder = order, breaks = breaks)
 }
@@ -88,13 +101,14 @@ if (MODE == "A") {
   fdpar  <- fdPar(basis, Lfdobj = LFD_ORDER_A, lambda = LAMBDA_A)
   fit    <- smooth.basis(arg, Y, fdpar)
   
-  # --- Report (A): number of basis fns, mean GCV, mean effective df ---
+  # --- Report (A): number of basis functions, mean GCV, mean effective df ---
   cat(sprintf("[A:SMOOTH] nbasis = %d | mean GCV = %.4f | mean eff. df ≈ %.2f\n",
               nbasis, mean(fit$gcv), mean(fit$df)))
   
   # --- Plot smoothed curves ---
   # Interpretation: Higher λ -> smoother (lower eff.df). For daily load, Fourier K=13 captures daily cycles well.
-  plot(fit$fd, main = "Smoothed curves", xlab = "hour", ylab = "y(t)")
+  plot(fit$fd, main = "Smoothed curves", xlab = "x", ylab = "y(x)") #number of splines = nbasis
+  # mean eff. df = approx dim of the space in which the smoothed curves live
   
 } else if (MODE == "B") {
   rngB   <- range(x_vec)
@@ -113,21 +127,22 @@ if (MODE == "A") {
   
   par(mfrow = c(1,2))
   plot(x_vec, yhat, type = "l", lwd = 2, col = 2,
-       xlab = "distance (km)", ylab = "altitude (m)", main = "Fitted curve")
+       xlab = "x", ylab = "y(x)", main = "Fitted curve")
   points(x_vec, y_vec, pch = 16, cex = 0.5)
   plot(x_vec, yprime, type = "l", lwd = 2, col = 4,
-       xlab = "distance (km)", ylab = "slope (m/km)", main = "First derivative")
+       xlab = "x", ylab = "y'(x)", main = "First derivative")
   par(mfrow = c(1,1))
 }
 
 # ------------------------------- 4) FPCA (MODE A) --------------------------------
 if (MODE == "A") {
-  nh <- min(NHARM, basis$nbasis)
+  nh <- min(NHARM, basis$nbasis) #upper bound on number of harmonics
   pca <- pca.fd(fit$fd, nharm = nh, centerfns = TRUE)
   
   # Proportion of variance explained by PC2, and PCs for 95% cum. PVE
   pve <- pca$varprop
   cum_pve <- cumsum(pve)
+  #pcs needed to reach target cumulative pve 
   k95 <- which(cum_pve >= CUM_PVE_TGT)[1]
   cat(sprintf("[A:FPCA] PC2 PVE = %.2f%% | PCs to reach %.0f%% = %d (cum = %.2f%%)\n",
               100*pve[2], 100*CUM_PVE_TGT, k95, 100*cum_pve[k95]))
@@ -138,10 +153,11 @@ if (MODE == "A") {
   abline(h = 95, lty = 2, col = "grey60")
   
   # --- Interpretation plots for PC1 and PC2 (mean ± c*phi_j) ---
-  # Interpretation: Where mean± shifts are large, that PC modulates that time segment (e.g., morning/evening peaks).
+  # Interpretation: Where mean± shifts are large,
+  #that PC modulates that time segment (e.g., morning/evening peaks).
   par(mfrow = c(1,2))
-  plot(pca, harm = 1, nx = 101, pointplot = TRUE, main = "Effect of PC1")
-  plot(pca, harm = 2, nx = 101, pointplot = TRUE, main = "Effect of PC2")
+  plot(pca, harm = 1, nx = 101, pointplot = TRUE)
+  plot(pca, harm = 2, nx = 101, pointplot = TRUE)
   par(mfrow = c(1,1))
   
   # Convenience: scores dataframe
@@ -149,11 +165,27 @@ if (MODE == "A") {
   colnames(scores) <- paste0("PC", seq_len(ncol(scores)))
   if (!is.null(group)) scores$group <- group
 }
-#TO UPDATE
+
+# plot degli scores dei primi due PC divisi per gruppo: classificazione visiva
+scores <- pca$scores
+plot(scores[, 1], scores[, 2], col = as.factor(group),
+     pch = 19, xlab = "PC1", ylab = "PC2", main = "Scores of First Two Principal Components")
+legend("topright", legend = as.factor(levels(as.factor(group))), col = as.factor(levels(as.factor(group))), pch = 19)
+
+#HOW TO INTERPRET: IF THE COLOURS ARE NEATLY SEPARATED,
+#IT MEANS THAT THE FIRST TWO PCS ARE USEFUL TO DISTINGUISH THE GROUPS
+#diagonal line separates groups: we need bothm PC1 and PC2 to separate them
+#horizontal/vertical line: only the respective PC is enough to separate them
+
+plot(scores[, 1] ~ as.factor(group)) 
+plot(scores[, 2] ~ as.factor(group)) 
+
+
+
 # -------- 5) Group separation & quick classification (MODE A, if groups exist) ---
 if (MODE == "A" && !is.null(group)) {
   # --- PC1 vs PC2 scatter ---
-  # Interpretation: Visible clustering suggests these PCs carry daytype/season information.
+  # Interpretation: Visible clustering suggests these PCs carry factor information.
   print(
     ggplot(scores, aes(x = PC1, y = PC2, color = group)) +
       geom_point(alpha = 0.8) +
@@ -182,7 +214,9 @@ if (MODE == "A" && !is.null(group)) {
   K <- min(10, ncol(pca$scores))     # use up to 10 PCs (or adjust)
   dat_lda <- data.frame(y = scores$group, pca$scores[, 1:K, drop=FALSE])
   lda_fit <- lda(y ~ ., data = dat_lda, CV = TRUE)  # LOOCV predictions
-  lda_proj <- as.numeric(lda_fit$x)                 # discriminant scores (1-D)
+  # Calculate the discriminant scores using predict()
+  lda_pred <- predict(lda_fit, dat_lda)
+  lda_proj <- as.numeric(lda_pred$x)
   acc_lda <- mean(lda_fit$class == dat_lda$y)
   
   # Baseline: PC1-only thresholding via LDA on PC1 (still 1-D)
