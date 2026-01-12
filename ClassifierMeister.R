@@ -76,15 +76,10 @@ cat("\n[Data Loaded] Response:", VAR_RESP, "Levels:", levels(y), "\n")
 cat("\n================ ASSUMPTIONS CHECK ================\n")
 
 # A) Normality (Henze-Zirkler Test)
-cat("--- 1. Multivariate Normality (H0: Normal) ---\n")
 # We check normality WITHIN each group
-for(lev in levels(y)) {
-  cat("Group", lev, ":\n")
-  # If sample size is small (< 4), this might error. Skip if needed.
-  tryCatch({
-    print(mvn(data = X[y == lev, ], mvnTest = "hz")$multivariateNormality)
-  }, error=function(e){cat(" Sample too small for MVN test\n")})
-}
+mvn(X[y == LABEL_POS, , drop = FALSE], )
+mvn(X[y == LABEL_NEG, , drop = FALSE], )
+
 
 # B) Homoscedasticity (Box's M Test)
 cat("\n--- 2. Homogeneity of Covariances (Box's M) ---\n")

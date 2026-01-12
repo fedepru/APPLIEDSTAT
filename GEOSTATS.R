@@ -127,8 +127,8 @@ predict(g.tr, sc.new, BLUE = ) # var1.pred = 1.213959
 
 #which model should be preferred?
 #longer range: better
-#lower sill: better
-#smoother plot => better
+#lower sill: better (has priority on range: it tells you of a better fit)
+#smoother plot => better (fit)
 
 #we need for the plot to run: v2,v3 and v2.fit, v3.fit, just assign them
 #v2=variogram(...)

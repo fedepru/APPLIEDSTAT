@@ -1,6 +1,34 @@
 library(MASS)     # lda
 library(MVN)      # mvn()
 library(heplots)  # boxM()
+# ----------------------------- 2. THEORY RECAP --------------------------------
+# A) BAYES CLASSIFIER:
+#    - Minimizes Total Probability of Misclassification (if costs equal) or Expected Cost.
+#    - Allocates x to group g that maximizes posterior P(g|x).
+#    - Rule: Assign to group k if: f_k(x) * pi_k > f_j(x) * pi_j  (for all j != k)
+#    - "Maximum Likelihood Classifier": Special case where priors pi_k are equal.
+
+# B) LDA (Linear Discriminant Analysis):
+#    - Assumptions: 
+#      1. Normality (Populations are Gaussian).
+#      2. Homoscedasticity (Sigma_1 = Sigma_2 = ... = Sigma_g = Sigma).
+#    - Boundary: Linear. Good for small samples if assumption holds.
+
+# C) QDA (Quadratic Discriminant Analysis):
+#    - Assumptions: 
+#      1. Normality.
+#      2. Heteroscedasticity (Sigma_1 != Sigma_2). Allows different covariances.
+#    - Boundary: Quadratic (Curved). Requires more parameters (n_g > p).
+
+# D) FISHER DA:
+#    - Non-parametric (does not assume Normality).
+#    - Finds linear combination 'a' maximizing between-group var / within-group var.
+#    - For g=2 groups, Fisher's direction is proportional to LDA direction.
+
+# E) KNN (K-Nearest Neighbors):
+#    - Non-parametric. No assumptions on distribution.
+#    - Assigns class based on majority vote of 'k' nearest neighbors.
+#    - Sensitive to scale (scale data first!).
 
 ## ======================= PARAMS (edit only this) =========================
 file_path   <- "health.txt"                      # e.g. "food.txt"
@@ -61,6 +89,35 @@ APER <- err_wrt_truepriors(tab_APP)  # apparent error (wrt true priors)
 AER  <- err_wrt_truepriors(tab_CV)   # LOOCV error (wrt true priors)
 APER; AER
 
+#interpretation: 4 scenarios
+#1 AER = APER (almost equal) => model is good, not overfitting
+#2 AER > APER (significantly) => model is overfitting
+#3 AER and APER are both high => model is not good 
+#4 AER < APER  WARNING: PROBABLY MADE A MISTAKE
+
+
+# QDA code for reference only ----------------------------------------------
+### Build the corresponding classifier, providing an estimate of its actual error rate through
+### leave-one-out crossvalidation.
+
+qda.dat <- qda(X,y)
+QdaCV.dat <- qda(X,y, CV=T)
+
+QdaCV.dat$class
+table(class.true=y, class.assignedCV=QdaCV.dat$class)
+
+# confusion matrices
+tab_APPQ <- table(class.true = y, class.assigned = predict(qda.dat)$class)
+tab_APPQ;
+
+errorsqCV <- (QdaCV.dat$class != y)
+errorsqCV
+
+AER_QDA   <- sum(errorsqCV)/length(y)
+APER_QDA <- err_wrt_truepriors(tab_APPQ)  # apparent error (wrt true priors)
+APER_QDA; AER_QDA
+
+
 # (d) budget for interventions/tests in next cohort ------------------------
 # predicted-positive rate from CV:
 ptd <- mean(lda_cv$class == pos_label)  # P(pred = positive)
@@ -72,7 +129,7 @@ budget
 EMC_per <- p_neg * AER["fp_rate"] * c_fp + p_pos * AER["fn_rate"] * c_fn
 cost_new_per   <- EMC_per + ptd * c_fp
 cost_new_total <- cohort_n * cost_new_per
-
+#cost all total is equivalent to the cost using the old strategy
 cost_all_total <- cohort_n * c_fp
 savings <- cost_all_total - cost_new_total
 
